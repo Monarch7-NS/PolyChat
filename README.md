@@ -1,4 +1,4 @@
-# Plan de travail — Mini-projet Tchat NoSQL (INFO834)
+# Plan de travail — Mini-projet Tchat NoSQL 
 
 ---
 
