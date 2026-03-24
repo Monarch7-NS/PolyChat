@@ -66,7 +66,7 @@
 
 ---
 
-## 3. Infrastructure Docker et ReplicaSet
+## 3. Infrastructure Docker et ReplicaSet (Steve)
 
 ### Tâches
 
@@ -81,7 +81,7 @@
 
 ## 4. Développement
 
-### Backend : serveur et gestion des messages
+### Backend : serveur et gestion des messages (Anas & Houssam)
 
 - Mettre en place le serveur (Flask)
 - Connexion au ReplicaSet MongoDB
@@ -91,7 +91,7 @@
 - Route : déconnexion utilisateur → retrait de Redis
 - Tester avec Postman ou `curl` sans le frontend
 
-### Redis & requêtes avancées MongoDB
+### Redis & requêtes avancées MongoDB (Steve)
 
 - Implémenter `online:users` (SET Redis) : `SADD` à la connexion, `SREM` à la déconnexion
 - Implémenter `session:{username}` (HASH Redis) avec TTL de 30 min
@@ -100,7 +100,7 @@
 - Requête MongoDB : utilisateur le plus sollicité (le plus de messages reçus)
 - Requête MongoDB : messages non lus pour un utilisateur donné
 
-### Frontend & interface client
+### Frontend & interface client (Islam)
 
 - Écran de connexion : champ username, bouton rejoindre
 - Liste des utilisateurs connectés (mise à jour en temps réel)
