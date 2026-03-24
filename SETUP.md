@@ -10,7 +10,10 @@ PolyChat/
 ├── backend/           # API Flask
 ├── database/          # Configuration MongoDB
 ├── docker-compose.yml # Orchestration Docker
-└── README.md          # Ce fichier
+├── SETUP.md          # Guide de démarrage
+├── GIT_GUIDE.md      # Guide Git et collaboration
+├── Makefile          # Commandes raccourcis
+└── README.md         # Documentation détaillée
 ```
 
 ## 🚀 Démarrage rapide avec Docker
@@ -206,13 +209,65 @@ HGETALL session:username
 
 ---
 
+## 👥 Collaboration et Git
+
+### Synchroniser votre travail avec l'équipe
+
+```bash
+# Pull sécurisé (préserve votre travail local)
+make git-pull
+# ou
+bash do-pull.sh
+
+# Push de vos changements
+make git-push
+
+# Voir l'historique
+git log --oneline
+```
+
+**⚠️ Toujours faire un pull avant de commencer à travailler!**
+
+Pour des détails sur la gestion des conflits et les bonnes pratiques Git, consultez [GIT_GUIDE.md](./GIT_GUIDE.md).
+
+---
+
+## 🛠️ Commandes pratiques
+
+### Avec Make (recommandé)
+
+```bash
+make help          # Voir toutes les commandes
+make install       # Installer les dépendances
+make docker-up     # Démarrer l'infrastructure
+make docker-down   # Arrêter l'infrastructure
+make logs          # Voir les logs
+make git-pull      # Pull sécurisé
+make git-push      # Push des changements
+```
+
+### Git
+
+```bash
+git status                    # Voir l'état
+git add .                     # Ajouter les changements
+git commit -m "Description"   # Valider
+git push origin main          # Pousser
+```
+
+---
+
 ## 👥 Contribution
 
-1. Créez une branche pour votre fonctionnalité
-2. Committez vos changements
-3. Poussez votre branche
-4. Créez une Pull Request
+1. Tirez les derniers changements : `make git-pull`
+2. Créez une branche si nécessaire : `git checkout -b ma-feature`
+3. Committez régulièrement : `git commit -m "..."`
+4. Poussez votre branche : `git push origin ma-feature` (ou `make git-push`)
+5. Signalez à votre équipe les modifications
 
 ---
 
 **Bonne développement ! 🎉**
+
+Pour plus d'aide, voir [GIT_GUIDE.md](./GIT_GUIDE.md) et les READMEs des services.
+

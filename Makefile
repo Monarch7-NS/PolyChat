@@ -1,10 +1,14 @@
-.PHONY: help install dev docker-up docker-down logs clean
+.PHONY: help install dev docker-up docker-down logs clean git-pull git-push
 
 help:
 	@echo "PolyChat - Commandes disponibles"
 	@echo ""
 	@echo "Setup:"
 	@echo "  make install       - Installer les dépendances"
+	@echo ""
+	@echo "Git:"
+	@echo "  make git-pull      - Pull sécurisé (préserve le travail local)"
+	@echo "  make git-push      - Commit et push les changements"
 	@echo ""
 	@echo "Docker:"
 	@echo "  make docker-up     - Lancer tous les services"
@@ -47,6 +51,29 @@ logs:
 logs-%:
 	docker compose logs -f $*
 
+# ========== Git Commands ==========
+
+git-pull:
+	@echo "Pull sécurisé en cours..."
+	@chmod +x do-pull.sh
+	@./do-pull.sh
+
+git-push:
+	@echo "Push des changements..."
+	git status --short
+	@read -p "Voulez-vous continuer? (y/n) " ans; \
+	if [ "$$ans" = "y" ]; then \
+		git add .; \
+		read -p "Message de commit: " msg; \
+		git commit -m "$$msg"; \
+		git push origin main; \
+		echo "✓ Push terminé"; \
+	else \
+		echo "Annulé"; \
+	fi
+
+# ========== Development ==========
+
 dev-backend:
 	@echo "Lancement du backend..."
 	cd backend && source venv/bin/activate && python app.py
@@ -58,6 +85,8 @@ dev-frontend:
 dev-db:
 	@echo "Lancement de MongoDB ReplicaSet et Redis..."
 	docker compose up -d mongo1 mongo2 mongo3 redis
+
+# ========== Status & Utils ==========
 
 status:
 	@docker compose ps
