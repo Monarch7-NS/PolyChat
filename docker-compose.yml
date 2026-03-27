@@ -15,7 +15,7 @@ services:
     networks:
       - mongo_net
 
-  # ─── BACKEND FastAPI ──────────────────────────────
+  # ─── BACKEND Flask ────────────────────────────────
   backend:
     build: ./backend
     container_name: polychat_backend
