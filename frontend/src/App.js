@@ -1,170 +1,215 @@
-import React, { useState, useEffect } from 'react';
-import './App.css';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
+import Login from './components/Login';
+import Sidebar from './components/Sidebar';
+import ChatPanel from './components/ChatPanel';
+import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const WS_URL = API_URL.replace(/^http/, 'ws');
 
 function App() {
   const [username, setUsername] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [onlineUsers, setOnlineUsers] = useState([]);
-  const [messages, setMessages] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [onlineUsers, setOnlineUsers] = useState(new Set());
   const [selectedUser, setSelectedUser] = useState(null);
-  const [messageInput, setMessageInput] = useState('');
+  const [messages, setMessages] = useState([]);
+  const [typingUsers, setTypingUsers] = useState(new Set());
 
-  // Récupérer les utilisateurs en ligne
-  const fetchOnlineUsers = async () => {
+  const ws = useRef(null);
+  const selectedUserRef = useRef(null);
+  const currentUserRef = useRef('');
+  const typingTimers = useRef({});
+
+  const fetchConversations = useCallback(async (user) => {
     try {
-      const response = await axios.get(`${API_URL}/api/users/online`);
-      setOnlineUsers(response.data.users || []);
-    } catch (error) {
-      console.error('Erreur lors de la récupération des utilisateurs:', error);
-    }
-  };
+      const res = await axios.get(`${API_URL}/api/conversations/${user}`);
+      setConversations(res.data.conversations || []);
+    } catch (_) {}
+  }, []);
 
-  // Connexion de l'utilisateur
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    if (!username.trim()) return;
-
+  const fetchOnlineUsers = useCallback(async () => {
     try {
-      await axios.post(`${API_URL}/api/users/login`, { username });
+      const res = await axios.get(`${API_URL}/api/users/online`);
+      setOnlineUsers(new Set(res.data.users || []));
+    } catch (_) {}
+  }, []);
+
+  const markAsRead = useCallback(async (fromUser, toUser) => {
+    try {
+      await axios.put(`${API_URL}/api/conversations/read`, null, {
+        params: { from_user: fromUser, to_user: toUser },
+      });
+    } catch (_) {}
+  }, []);
+
+  const handleWsMessage = useCallback(
+    (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        switch (data.type) {
+          case 'new_message':
+            if (data.from === selectedUserRef.current) {
+              setMessages((prev) => [...prev, data]);
+              markAsRead(data.from, currentUserRef.current);
+            } else {
+              setConversations((prev) => {
+                const exists = prev.find((c) => c.other_user === data.from);
+                const updated = exists
+                  ? prev
+                      .map((c) =>
+                        c.other_user === data.from
+                          ? { ...c, unread_count: c.unread_count + 1, last_message: data.content, updated_at: data.timestamp }
+                          : c
+                      )
+                      .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+                  : [{ other_user: data.from, last_message: data.content, updated_at: data.timestamp, unread_count: 1 }, ...prev];
+                return updated;
+              });
+            }
+            break;
+          case 'typing':
+            setTypingUsers((prev) => new Set([...prev, data.from]));
+            clearTimeout(typingTimers.current[data.from]);
+            typingTimers.current[data.from] = setTimeout(() => {
+              setTypingUsers((prev) => {
+                const next = new Set(prev);
+                next.delete(data.from);
+                return next;
+              });
+            }, 3000);
+            break;
+          case 'stop_typing':
+            setTypingUsers((prev) => {
+              const next = new Set(prev);
+              next.delete(data.from);
+              return next;
+            });
+            break;
+          default:
+            break;
+        }
+      } catch (_) {}
+    },
+    [markAsRead]
+  );
+
+  const handleWsMessageRef = useRef(handleWsMessage);
+  useEffect(() => {
+    handleWsMessageRef.current = handleWsMessage;
+  }, [handleWsMessage]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    currentUserRef.current = username;
+
+    ws.current = new WebSocket(`${WS_URL}/ws/${username}`);
+    ws.current.onmessage = (e) => handleWsMessageRef.current(e);
+    ws.current.onerror = () => {};
+
+    fetchConversations(username);
+    fetchOnlineUsers();
+    const interval = setInterval(fetchOnlineUsers, 10000);
+
+    return () => {
+      clearInterval(interval);
+      ws.current?.close();
+    };
+  }, [isLoggedIn, username, fetchConversations, fetchOnlineUsers]);
+
+  const selectUser = useCallback(
+    async (otherUser) => {
+      selectedUserRef.current = otherUser;
+      setSelectedUser(otherUser);
+      try {
+        const res = await axios.get(`${API_URL}/api/messages/conversation`, {
+          params: { user1: currentUserRef.current, user2: otherUser },
+        });
+        setMessages(res.data.messages || []);
+      } catch (_) {}
+      await markAsRead(otherUser, currentUserRef.current);
+      setConversations((prev) =>
+        prev.map((c) => (c.other_user === otherUser ? { ...c, unread_count: 0 } : c))
+      );
+    },
+    [markAsRead]
+  );
+
+  const handleLogin = async (inputUsername) => {
+    const trimmed = inputUsername.trim();
+    if (!trimmed) return;
+    try {
+      await axios.post(`${API_URL}/api/users/login`, { username: trimmed });
+      setUsername(trimmed);
       setIsLoggedIn(true);
-      fetchOnlineUsers();
-      // Rafraîchir la liste des utilisateurs toutes les 5 secondes
-      setInterval(fetchOnlineUsers, 5000);
-    } catch (error) {
-      console.error('Erreur lors de la connexion:', error);
+    } catch (_) {
       alert('Erreur de connexion');
     }
   };
 
-  // Déconnexion
   const handleLogout = async () => {
     try {
       await axios.post(`${API_URL}/api/users/logout`, { username });
-      setIsLoggedIn(false);
-      setUsername('');
-      setOnlineUsers([]);
-      setMessages([]);
-      setSelectedUser(null);
-    } catch (error) {
-      console.error('Erreur lors de la déconnexion:', error);
-    }
+    } catch (_) {}
+    ws.current?.close();
+    selectedUserRef.current = null;
+    setIsLoggedIn(false);
+    setUsername('');
+    setConversations([]);
+    setSelectedUser(null);
+    setMessages([]);
+    setOnlineUsers(new Set());
+    setTypingUsers(new Set());
   };
 
-  // Récupérer l'historique avec un utilisateur
-  const fetchConversation = async (otherUser) => {
-    try {
-      const response = await axios.get(
-        `${API_URL}/api/messages/conversation`,
-        { params: { user1: username, user2: otherUser } }
-      );
-      setMessages(response.data.messages || []);
-      setSelectedUser(otherUser);
-    } catch (error) {
-      console.error('Erreur lors de la récupération des messages:', error);
-    }
-  };
-
-  // Envoyer un message
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!messageInput.trim() || !selectedUser) return;
-
+  const handleSendMessage = async (content) => {
+    if (!content.trim() || !selectedUser) return;
+    const now = new Date().toISOString();
     try {
       await axios.post(`${API_URL}/api/messages/send`, {
-        from: username,
-        to: selectedUser,
-        content: messageInput,
+        from_user: username,
+        to_user: selectedUser,
+        content: content.trim(),
       });
-      setMessageInput('');
-      await fetchConversation(selectedUser);
-    } catch (error) {
-      console.error('Erreur lors de l\'envoi du message:', error);
-    }
+      setMessages((prev) => [
+        ...prev,
+        { from: username, to: selectedUser, content: content.trim(), timestamp: now, read: false },
+      ]);
+      setConversations((prev) => {
+        const updated = { other_user: selectedUser, last_message: content.trim(), updated_at: now, unread_count: 0 };
+        return [updated, ...prev.filter((c) => c.other_user !== selectedUser)];
+      });
+    } catch (_) {}
   };
 
-  if (!isLoggedIn) {
-    return (
-      <div className="App">
-        <div className="login-container">
-          <h1>PolyChat</h1>
-          <form onSubmit={handleLogin}>
-            <input
-              type="text"
-              placeholder="Nom d'utilisateur"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-            />
-            <button type="submit">Se connecter</button>
-          </form>
-        </div>
-      </div>
-    );
-  }
+  const sendTyping = useCallback((type) => {
+    if (ws.current?.readyState === WebSocket.OPEN && selectedUserRef.current) {
+      ws.current.send(JSON.stringify({ type, to: selectedUserRef.current }));
+    }
+  }, []);
+
+  if (!isLoggedIn) return <Login onLogin={handleLogin} />;
 
   return (
-    <div className="App">
-      <header>
-        <h1>PolyChat</h1>
-        <div className="user-info">
-          <span>Connecté en tant que: {username}</span>
-          <button onClick={handleLogout}>Déconnexion</button>
-        </div>
-      </header>
-
-      <div className="chat-container">
-        <aside className="users-panel">
-          <h2>Utilisateurs en ligne</h2>
-          <ul>
-            {onlineUsers
-              .filter((user) => user !== username)
-              .map((user) => (
-                <li
-                  key={user}
-                  onClick={() => fetchConversation(user)}
-                  className={selectedUser === user ? 'active' : ''}
-                >
-                  {user}
-                </li>
-              ))}
-          </ul>
-        </aside>
-
-        <main className="messages-panel">
-          {selectedUser ? (
-            <>
-              <h2>Conversation avec {selectedUser}</h2>
-              <div className="messages-list">
-                {messages.map((msg, index) => (
-                  <div
-                    key={index}
-                    className={`message ${msg.from === username ? 'sent' : 'received'}`}
-                  >
-                    <strong>{msg.from}:</strong> {msg.content}
-                    <small>{new Date(msg.timestamp).toLocaleString()}</small>
-                  </div>
-                ))}
-              </div>
-              <form onSubmit={handleSendMessage} className="message-form">
-                <input
-                  type="text"
-                  placeholder="Votre message..."
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                />
-                <button type="submit">Envoyer</button>
-              </form>
-            </>
-          ) : (
-            <div className="no-selection">
-              <p>Sélectionnez un utilisateur pour commencer le chat</p>
-            </div>
-          )}
-        </main>
-      </div>
+    <div className="app">
+      <Sidebar
+        username={username}
+        conversations={conversations}
+        onlineUsers={onlineUsers}
+        selectedUser={selectedUser}
+        onSelectUser={selectUser}
+        onLogout={handleLogout}
+      />
+      <ChatPanel
+        username={username}
+        selectedUser={selectedUser}
+        messages={messages}
+        typingUsers={typingUsers}
+        onSendMessage={handleSendMessage}
+        onTyping={sendTyping}
+        isOnline={onlineUsers.has(selectedUser)}
+      />
     </div>
   );
 }
