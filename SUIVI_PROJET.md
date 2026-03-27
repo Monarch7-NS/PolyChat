@@ -23,6 +23,8 @@ Ce document suit l'avancement du projet PolyChat (INFO834 - Mini-projet BD NoSQL
 - **Steve MBODA :**
   - Réalisation des fichiers Docker Compose : Configuration du ReplicaSet MongoDB (3 nœuds), Redis, et services backend/frontend
   - Tests de fonctionnement de nos replicatsets (tests de la réplication des données, tests de la tolérance aux pannes: le replicaset élit automatiquement un nouveau PRIMARY, test de resynchronisation).
+  - Tests de nos routes API
+  - Connexion à Redis, gestion des utilisateurs connectés, des sessions utilisateurs
   
 
 **Avancement global :**
