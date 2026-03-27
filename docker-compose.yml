@@ -86,24 +86,22 @@ services:
       timeout: 5s
       retries: 5
 
-  # ─── INIT ReplicaSet + Collections (exécuté une seule fois) ───
+ 
+  # ─── INIT ReplicaSet (s'exécute une seule fois) ───
   mongo-init:
     image: mongo:7
     container_name: mongo-init
     depends_on:
       mongo1:
         condition: service_healthy
-      mongo2:
-        condition: service_healthy
-      mongo3:
-        condition: service_healthy
     networks:
       - mongo_net
     restart: "no"
-    volumes:
-      - ./database/init-mongo.sh:/init-mongo.sh:ro
-    entrypoint: ["bash", "/init-mongo.sh"]
-
+    entrypoint: [
+      "mongosh", "--host", "mongo1",
+      "--eval",
+      "rs.initiate({ _id: 'rs0', members: [ { _id: 0, host: 'mongo1:27017' }, { _id: 1, host: 'mongo2:27017' }, { _id: 2, host: 'mongo3:27017' } ] })"
+    ]
 networks:
   mongo_net:
     driver: bridge
