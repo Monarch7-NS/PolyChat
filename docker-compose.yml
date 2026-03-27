@@ -1,179 +1,101 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  # ========== MongoDB ReplicaSet ==========
-  
+
+  # ─── FRONTEND React ───────────────────────────────
+  frontend:
+    build: ./frontend
+    container_name: polychat_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:5000
+    depends_on:
+      - backend
+    networks:
+      - mongo_net
+
+  # ─── BACKEND Flask ────────────────────────────────
+  backend:
+    build: ./backend
+    container_name: polychat_backend
+    ports:
+      - "5000:5000"
+    environment:
+      MONGO_URI: "mongodb://mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=rs0"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+    depends_on:
+      - mongo-init
+      - redis
+    networks:
+      - mongo_net
+
+  # ─── REDIS ────────────────────────────────────────
+  redis:
+    image: redis:7
+    container_name: polychat_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - mongo_net
+
+  # ─── REPLICASET MongoDB ───────────────────────────
   mongo1:
-    image: mongo:6.0
+    image: mongo:7
     container_name: mongo1
+    command: mongod --replSet rs0 --bind_ip_all
     ports:
       - "27017:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: password
     volumes:
       - mongo1_data:/data/db
-    command: >
-      --replSet polychat-rs
-      --bind_ip_all
-      --auth
     networks:
-      - polychat-network
+      - mongo_net
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   mongo2:
-    image: mongo:6.0
+    image: mongo:7
     container_name: mongo2
-    ports:
-      - "27018:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: password
+    command: mongod --replSet rs0 --bind_ip_all
     volumes:
       - mongo2_data:/data/db
-    command: >
-      --replSet polychat-rs
-      --bind_ip_all
-      --auth
     networks:
-      - polychat-network
-    depends_on:
-      - mongo1
-    healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - mongo_net
 
   mongo3:
-    image: mongo:6.0
+    image: mongo:7
     container_name: mongo3
-    ports:
-      - "27019:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: password
+    command: mongod --replSet rs0 --bind_ip_all
     volumes:
       - mongo3_data:/data/db
-    command: >
-      --replSet polychat-rs
-      --bind_ip_all
-      --auth
     networks:
-      - polychat-network
-    depends_on:
-      - mongo1
-    healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - mongo_net
 
-  # Initialisation du ReplicaSet
+  # ─── INIT ReplicaSet (s'exécute une seule fois) ───
   mongo-init:
-    image: mongo:6.0
+    image: mongo:7
     container_name: mongo-init
     depends_on:
       mongo1:
         condition: service_healthy
-      mongo2:
-        condition: service_healthy
-      mongo3:
-        condition: service_healthy
     networks:
-      - polychat-network
-    command: >
-      mongosh --host mongo1:27017
-      -u admin
-      -p password
-      --authenticationDatabase admin
-      --eval '
-      rs.initiate({
-        _id: "polychat-rs",
-        members: [
-          {_id: 0, host: "mongo1:27017"},
-          {_id: 1, host: "mongo2:27017"},
-          {_id: 2, host: "mongo3:27017"}
-        ]
-      });
-      '
+      - mongo_net
+    restart: "no"
+    entrypoint: [
+      "mongosh", "--host", "mongo1",
+      "--eval",
+      "rs.initiate({ _id: 'rs0', members: [ { _id: 0, host: 'mongo1:27017' }, { _id: 1, host: 'mongo2:27017' }, { _id: 2, host: 'mongo3:27017' } ] })"
+    ]
 
-  # ========== Redis ==========
-
-  redis:
-    image: redis:7-alpine
-    container_name: redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - polychat-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # ========== Backend Flask ==========
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: polychat-backend
-    ports:
-      - "5000:5000"
-    environment:
-      MONGO_URI: mongodb://admin:password@mongo1:27017/?authSource=admin&replicaSet=polychat-rs
-      MONGO_DB: polychat
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_DB: 0
-      FLASK_ENV: development
-      FLASK_DEBUG: 'true'
-    volumes:
-      - ./backend:/app
-    depends_on:
-      - mongo1
-      - mongo2
-      - mongo3
-      - redis
-      - mongo-init
-    networks:
-      - polychat-network
-    command: python app.py
-
-  # ========== Frontend React ==========
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: polychat-frontend
-    ports:
-      - "3000:3000"
-    environment:
-      REACT_APP_API_URL: http://localhost:5000
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    depends_on:
-      - backend
-    networks:
-      - polychat-network
-    command: npm start
+networks:
+  mongo_net:
+    driver: bridge
 
 volumes:
   mongo1_data:
   mongo2_data:
   mongo3_data:
-  redis_data:
-
-networks:
-  polychat-network:
-    driver: bridge

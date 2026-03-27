@@ -1,16 +1,15 @@
 import os
 from datetime import datetime
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 import redis
 from dotenv import load_dotenv
 
 load_dotenv()
-
-app = Flask(__name__)
-CORS(app)
 
 # Configuration
 MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017/')
@@ -19,257 +18,227 @@ REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
 REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
 REDIS_DB = int(os.getenv('REDIS_DB', 0))
 
-# Connexions aux bases de données
-try:
-    mongo_client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
-    mongo_client.admin.command('ping')
-    db = mongo_client[MONGO_DB]
-    print("✓ Connecté à MongoDB")
-except ServerSelectionTimeoutError:
-    print("✗ Impossible de se connecter à MongoDB")
-    db = None
+db = None
+redis_client = None
 
-try:
-    redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
-    redis_client.ping()
-    print("✓ Connecté à Redis")
-except Exception as e:
-    print(f"✗ Impossible de se connecter à Redis: {e}")
-    redis_client = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global db, redis_client
+
+    try:
+        mongo_client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+        mongo_client.admin.command('ping')
+        db = mongo_client[MONGO_DB]
+        print("✓ Connecté à MongoDB")
+    except ServerSelectionTimeoutError:
+        print("✗ Impossible de se connecter à MongoDB")
+
+    try:
+        redis_client = redis.Redis(
+            host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True
+        )
+        redis_client.ping()
+        print("✓ Connecté à Redis")
+    except Exception as e:
+        print(f"✗ Impossible de se connecter à Redis: {e}")
+
+    yield
+
+
+app = FastAPI(title="PolyChat API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ============== MODÈLES ==============
+
+class UsernameBody(BaseModel):
+    username: str
+
+class MessageBody(BaseModel):
+    from_user: str
+    to_user: str
+    content: str
+
+    class Config:
+        # Allow "from" as an alias since it's a Python keyword
+        populate_by_name = True
 
 
 # ============== ROUTES UTILISATEURS ==============
 
-@app.route('/api/users/login', methods=['POST'])
-def login():
+@app.post('/api/users/login')
+def login(body: UsernameBody):
     """Enregistre un utilisateur comme connecté"""
-    if not db or not redis_client:
-        return jsonify({'error': 'Services non disponibles'}), 503
-    
-    data = request.json
-    username = data.get('username', '').strip()
-    
+    if db is None or redis_client is None:
+        raise HTTPException(status_code=503, detail='Services non disponibles')
+
+    username = body.username.strip()
     if not username:
-        return jsonify({'error': 'Nom d\'utilisateur requis'}), 400
-    
-    try:
-        # Insérer ou mettre à jour l'utilisateur dans MongoDB
-        db.users.update_one(
-            {'username': username},
-            {'$set': {'username': username, 'created_at': datetime.utcnow()}},
-            upsert=True
-        )
-        
-        # Ajouter à Redis (ensemble des utilisateurs en ligne)
-        redis_client.sadd('online:users', username)
-        redis_client.hset(f'session:{username}', mapping={
-            'username': username,
-            'logged_in_at': datetime.utcnow().isoformat()
-        })
-        redis_client.expire(f'session:{username}', 1800)  # TTL 30 min
-        
-        return jsonify({'message': 'Connecté avec succès', 'username': username}), 200
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        raise HTTPException(status_code=400, detail="Nom d'utilisateur requis")
+
+    db.users.update_one(
+        {'username': username},
+        {
+            '$setOnInsert': {'created_at': datetime.utcnow()},
+            '$set': {'username': username}
+        },
+        upsert=True
+    )
+
+    redis_client.sadd('online:users', username)
+    redis_client.hset(f'session:{username}', mapping={
+        'username': username,
+        'logged_in_at': datetime.utcnow().isoformat()
+    })
+    redis_client.expire(f'session:{username}', 1800)  # TTL 30 min
+
+    return {'message': 'Connecté avec succès', 'username': username}
 
 
-@app.route('/api/users/logout', methods=['POST'])
-def logout():
+@app.post('/api/users/logout')
+def logout(body: UsernameBody):
     """Déconnecte un utilisateur"""
-    if not redis_client:
-        return jsonify({'error': 'Service Redis non disponible'}), 503
-    
-    data = request.json
-    username = data.get('username', '').strip()
-    
+    if redis_client is None:
+        raise HTTPException(status_code=503, detail='Service Redis non disponible')
+
+    username = body.username.strip()
     if not username:
-        return jsonify({'error': 'Nom d\'utilisateur requis'}), 400
-    
-    try:
-        redis_client.srem('online:users', username)
-        redis_client.delete(f'session:{username}')
-        return jsonify({'message': 'Déconnecté avec succès'}), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        raise HTTPException(status_code=400, detail="Nom d'utilisateur requis")
+
+    redis_client.srem('online:users', username)
+    redis_client.delete(f'session:{username}')
+    return {'message': 'Déconnecté avec succès'}
 
 
-@app.route('/api/users/online', methods=['GET'])
+@app.get('/api/users/online')
 def get_online_users():
     """Retourne la liste des utilisateurs actuellement en ligne"""
-    if not redis_client:
-        return jsonify({'error': 'Service Redis non disponible'}), 503
-    
-    try:
-        users = list(redis_client.smembers('online:users'))
-        return jsonify({'users': users}), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    if redis_client is None:
+        raise HTTPException(status_code=503, detail='Service Redis non disponible')
+
+    users = list(redis_client.smembers('online:users'))
+    return {'users': users}
 
 
 # ============== ROUTES MESSAGES ==============
 
-@app.route('/api/messages/send', methods=['POST'])
-def send_message():
+@app.post('/api/messages/send', status_code=201)
+def send_message(body: MessageBody):
     """Envoie un message d'un utilisateur à un autre"""
-    if not db:
-        return jsonify({'error': 'MongoDB non disponible'}), 503
-    
-    data = request.json
-    from_user = data.get('from', '').strip()
-    to_user = data.get('to', '').strip()
-    content = data.get('content', '').strip()
-    
+    if db is None:
+        raise HTTPException(status_code=503, detail='MongoDB non disponible')
+
+    from_user = body.from_user.strip()
+    to_user = body.to_user.strip()
+    content = body.content.strip()
+
     if not all([from_user, to_user, content]):
-        return jsonify({'error': 'Paramètres manquants (from, to, content)'}), 400
-    
-    try:
-        message = {
-            'from': from_user,
-            'to': to_user,
-            'content': content,
-            'timestamp': datetime.utcnow(),
-            'read': False
-        }
-        
-        result = db.messages.insert_one(message)
-        
-        # Mettre à jour la conversation
-        db.conversations.update_one(
-            {'participants': {'$all': [from_user, to_user]}},
-            {
-                '$set': {
-                    'last_message': content,
-                    'updated_at': datetime.utcnow()
-                }
+        raise HTTPException(status_code=400, detail='Paramètres manquants (from_user, to_user, content)')
+
+    now = datetime.utcnow()
+    message = {
+        'from': from_user,
+        'to': to_user,
+        'content': content,
+        'timestamp': now,
+        'read': False
+    }
+
+    result = db.messages.insert_one(message)
+
+    db.conversations.update_one(
+        {'participants': sorted([from_user, to_user])},
+        {
+            '$set': {
+                'last_message': content,
+                'updated_at': now
             },
-            upsert=True
-        )
-        
-        # Si pas d'ensemble participants défini, en ajouter
-        db.conversations.update_one(
-            {'_id': result.inserted_id},
-            {'$set': {'participants': sorted([from_user, to_user])}}
-        )
-        
-        return jsonify({
-            'message': 'Message envoyé avec succès',
-            'id': str(result.inserted_id)
-        }), 201
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+            '$setOnInsert': {
+                'participants': sorted([from_user, to_user])
+            }
+        },
+        upsert=True
+    )
+
+    return {'message': 'Message envoyé avec succès', 'id': str(result.inserted_id)}
 
 
-@app.route('/api/messages/conversation', methods=['GET'])
-def get_conversation():
+@app.get('/api/messages/conversation')
+def get_conversation(user1: str, user2: str):
     """Récupère l'historique entre deux utilisateurs"""
-    if not db:
-        return jsonify({'error': 'MongoDB non disponible'}), 503
-    
-    user1 = request.args.get('user1', '').strip()
-    user2 = request.args.get('user2', '').strip()
-    
+    if db is None:
+        raise HTTPException(status_code=503, detail='MongoDB non disponible')
+
+    user1 = user1.strip()
+    user2 = user2.strip()
     if not user1 or not user2:
-        return jsonify({'error': 'Paramètres user1 et user2 requis'}), 400
-    
-    try:
-        messages = list(db.messages.find({
-            '$or': [
-                {'from': user1, 'to': user2},
-                {'from': user2, 'to': user1}
-            ]
-        }).sort('timestamp', 1))
-        
-        # Convertir les ObjectId et datetime en strings
-        for msg in messages:
-            msg['_id'] = str(msg['_id'])
-            msg['timestamp'] = msg['timestamp'].isoformat()
-        
-        return jsonify({'messages': messages}), 200
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        raise HTTPException(status_code=400, detail='Paramètres user1 et user2 requis')
+
+    messages = list(db.messages.find({
+        '$or': [
+            {'from': user1, 'to': user2},
+            {'from': user2, 'to': user1}
+        ]
+    }).sort('timestamp', 1))
+
+    for msg in messages:
+        msg['_id'] = str(msg['_id'])
+        msg['timestamp'] = msg['timestamp'].isoformat()
+
+    return {'messages': messages}
 
 
 # ============== ROUTES STATISTIQUES ==============
 
-@app.route('/api/stats/top-sender', methods=['GET'])
+@app.get('/api/stats/top-sender')
 def get_top_sender():
     """Retourne l'utilisateur qui envoie le plus de messages"""
-    if not db:
-        return jsonify({'error': 'MongoDB non disponible'}), 503
-    
-    try:
-        result = db.messages.aggregate([
-            {'$group': {'_id': '$from', 'count': {'$sum': 1}}},
-            {'$sort': {'count': -1}},
-            {'$limit': 1}
-        ])
-        
-        result = list(result)
-        if result:
-            return jsonify({
-                'username': result[0]['_id'],
-                'message_count': result[0]['count']
-            }), 200
-        
-        return jsonify({'message': 'Aucun message trouvé'}), 404
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    if db is None:
+        raise HTTPException(status_code=503, detail='MongoDB non disponible')
+
+    result = list(db.messages.aggregate([
+        {'$group': {'_id': '$from', 'count': {'$sum': 1}}},
+        {'$sort': {'count': -1}},
+        {'$limit': 1}
+    ]))
+
+    if not result:
+        raise HTTPException(status_code=404, detail='Aucun message trouvé')
+
+    return {'username': result[0]['_id'], 'message_count': result[0]['count']}
 
 
-@app.route('/api/stats/top-receiver', methods=['GET'])
+@app.get('/api/stats/top-receiver')
 def get_top_receiver():
     """Retourne l'utilisateur qui reçoit le plus de messages"""
-    if not db:
-        return jsonify({'error': 'MongoDB non disponible'}), 503
-    
-    try:
-        result = db.messages.aggregate([
-            {'$group': {'_id': '$to', 'count': {'$sum': 1}}},
-            {'$sort': {'count': -1}},
-            {'$limit': 1}
-        ])
-        
-        result = list(result)
-        if result:
-            return jsonify({
-                'username': result[0]['_id'],
-                'message_count': result[0]['count']
-            }), 200
-        
-        return jsonify({'message': 'Aucun message trouvé'}), 404
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    if db is None:
+        raise HTTPException(status_code=503, detail='MongoDB non disponible')
+
+    result = list(db.messages.aggregate([
+        {'$group': {'_id': '$to', 'count': {'$sum': 1}}},
+        {'$sort': {'count': -1}},
+        {'$limit': 1}
+    ]))
+
+    if not result:
+        raise HTTPException(status_code=404, detail='Aucun message trouvé')
+
+    return {'username': result[0]['_id'], 'message_count': result[0]['count']}
 
 
 # ============== ROUTE DE SANTÉ ==============
 
-@app.route('/api/health', methods=['GET'])
+@app.get('/api/health')
 def health():
-    """Vérif de la santé du serveur"""
-    status = {
+    return {
         'status': 'ok',
         'mongodb': 'connected' if db else 'disconnected',
         'redis': 'connected' if redis_client else 'disconnected'
     }
-    return jsonify(status), 200
-
-
-# ============== GESTION D'ERREURS ==============
-
-@app.errorhandler(404)
-def not_found(error):
-    return jsonify({'error': 'Route non trouvée'}), 404
-
-
-@app.errorhandler(500)
-def internal_error(error):
-    return jsonify({'error': 'Erreur interne du serveur'}), 500
-
-
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
