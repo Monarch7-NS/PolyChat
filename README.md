@@ -1,7 +1,3 @@
-# Plan de travail — Mini-projet Tchat NoSQL 
-
----
-
 ## 1. Contexte et objectif
 
 ### Fonctionnalités premières

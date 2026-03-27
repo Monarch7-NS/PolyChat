@@ -15,7 +15,7 @@ services:
     networks:
       - mongo_net
 
-  # ─── BACKEND Flask ────────────────────────────────
+  # ─── BACKEND FastAPI ──────────────────────────────
   backend:
     build: ./backend
     container_name: polychat_backend
@@ -23,6 +23,7 @@ services:
       - "5000:5000"
     environment:
       MONGO_URI: "mongodb://mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=rs0"
+      MONGO_DB: "polychat"
       REDIS_HOST: "redis"
       REDIS_PORT: "6379"
     depends_on:
@@ -65,6 +66,11 @@ services:
       - mongo2_data:/data/db
     networks:
       - mongo_net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   mongo3:
     image: mongo:7
@@ -74,22 +80,29 @@ services:
       - mongo3_data:/data/db
     networks:
       - mongo_net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # ─── INIT ReplicaSet (s'exécute une seule fois) ───
+  # ─── INIT ReplicaSet + Collections (exécuté une seule fois) ───
   mongo-init:
     image: mongo:7
     container_name: mongo-init
     depends_on:
       mongo1:
         condition: service_healthy
+      mongo2:
+        condition: service_healthy
+      mongo3:
+        condition: service_healthy
     networks:
       - mongo_net
     restart: "no"
-    entrypoint: [
-      "mongosh", "--host", "mongo1",
-      "--eval",
-      "rs.initiate({ _id: 'rs0', members: [ { _id: 0, host: 'mongo1:27017' }, { _id: 1, host: 'mongo2:27017' }, { _id: 2, host: 'mongo3:27017' } ] })"
-    ]
+    volumes:
+      - ./database/init-mongo.sh:/init-mongo.sh:ro
+    entrypoint: ["bash", "/init-mongo.sh"]
 
 networks:
   mongo_net:
