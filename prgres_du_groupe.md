@@ -10,7 +10,7 @@
 | Anas mohamed Draoui | `anas`, `Monarch7-NS`|
 | Houssam Eddine Syouti | `Houssam365` |
 | Stevens | `stevens237-hub` |
-| Islam Hachimi | `islam` |
+| Islam Hachimi | `mr-green1337` |
 
 
 ---
