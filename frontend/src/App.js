@@ -3,6 +3,7 @@ import axios from 'axios';
 import Login from './components/Login';
 import Sidebar from './components/Sidebar';
 import ChatPanel from './components/ChatPanel';
+import ProfileModal from './components/ProfileModal';
 import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
@@ -16,11 +17,30 @@ function App() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [messages, setMessages] = useState([]);
   const [typingUsers, setTypingUsers] = useState(new Set());
+  const [searchResults, setSearchResults] = useState([]);
+  const [profileUser, setProfileUser] = useState(null);
 
   const ws = useRef(null);
   const selectedUserRef = useRef(null);
   const currentUserRef = useRef('');
   const typingTimers = useRef({});
+
+  const searchUsers = useCallback(async (query) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    try {
+      const res = await axios.get(`${API_URL}/api/users/search`, {
+        params: { query: query.trim() },
+      });
+      // Filter out self and people already in conversations list
+      const filtered = (res.data.users || []).filter(
+        (u) => u !== currentUserRef.current && !conversations.find((c) => c.other_user === u)
+      );
+      setSearchResults(filtered);
+    } catch (_) {}
+  }, [conversations]);
 
   const fetchConversations = useCallback(async (user) => {
     try {
@@ -122,6 +142,7 @@ function App() {
     async (otherUser) => {
       selectedUserRef.current = otherUser;
       setSelectedUser(otherUser);
+      setSearchResults([]);
       try {
         const res = await axios.get(`${API_URL}/api/messages/conversation`, {
           params: { user1: currentUserRef.current, user2: otherUser },
@@ -200,6 +221,8 @@ function App() {
         selectedUser={selectedUser}
         onSelectUser={selectUser}
         onLogout={handleLogout}
+        searchResults={searchResults}
+        onSearch={searchUsers}
       />
       <ChatPanel
         username={username}
@@ -209,7 +232,11 @@ function App() {
         onSendMessage={handleSendMessage}
         onTyping={sendTyping}
         isOnline={onlineUsers.has(selectedUser)}
+        onShowProfile={(u) => setProfileUser(u)}
       />
+      {profileUser && (
+        <ProfileModal username={profileUser} onClose={() => setProfileUser(null)} />
+      )}
     </div>
   );
 }

@@ -10,12 +10,17 @@ function formatTime(iso) {
   return d.toLocaleDateString([], { day: '2-digit', month: '2-digit' });
 }
 
-function Sidebar({ username, conversations, onlineUsers, selectedUser, onSelectUser, onLogout }) {
+function Sidebar({ username, conversations, onlineUsers, selectedUser, onSelectUser, onLogout, searchResults, onSearch }) {
   const [search, setSearch] = useState('');
 
   const filtered = conversations.filter((c) =>
     c.other_user.toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleSearchChange = (e) => {
+    setSearch(e.target.value);
+    onSearch(e.target.value);
+  };
 
   return (
     <aside className="sidebar">
@@ -32,10 +37,27 @@ function Sidebar({ username, conversations, onlineUsers, selectedUser, onSelectU
       <div className="sidebar-search">
         <input
           type="text"
-          placeholder="Rechercher une conversation..."
+          placeholder="Rechercher / Nouveau chat..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={handleSearchChange}
         />
+        {search && searchResults && searchResults.length > 0 && (
+          <div className="new-chat-results">
+            <div className="conversations-label">Nouveaux correspondants</div>
+            {searchResults.map((u) => (
+              <div
+                key={u}
+                className="search-result-item"
+                onClick={() => {
+                  setSearch('');
+                  onSelectUser(u);
+                }}
+              >
+                {u}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="conversations-label">Messages</div>

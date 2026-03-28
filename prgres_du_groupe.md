@@ -10,6 +10,7 @@
 | Anas mohamed Draoui | `anas`, `Monarch7-NS`|
 | Houssam Eddine Syouti | `Houssam365` |
 | Stevens | `stevens237-hub` |
+| Islam Hachimi | `islam` |
 
 
 ---
@@ -223,10 +224,32 @@ Remplacement du système de polling (requêtes HTTP toutes les 5 secondes) par u
 | ~16h00 | `68036b1` | **Anas** | Adaptation du docker-compose de Houssam |
 | 16h21 | `35481ae` | **Anas** | Refactorisation architecture FastAPI + WebSocket + frontend redesign |
 | 17h11 | `869220d` | Stevens | Implémentation fonctionnalités Redis (`redis.py`) |
+| 04h55 | `(pending)`| **Islam** | Deeply build: UI overhaul, search users, scroll logic, emoji support |
 
 ---
 
-## État du projet au 28/03/2026
+## Travail d'Islam — 28/03/2026
+
+### 1. Refonte UI Premium (Glassmorphism)
+- Mise en place d'un design system moderne basé sur le **Glassmorphism**.
+- Utilisation de flous d'arrière-plan (`backdrop-filter`) et de bordures semi-transparentes.
+- Palette de couleurs enrichie avec des dégradés Indigo/Violet.
+- Support du responsive design pour une utilisation mobile.
+
+### 2. Système de Recherche et Discovery
+- Ajout de la route `GET /api/users/search` au backend pour trouver des utilisateurs.
+- Intégration d'une barre de recherche dynamique dans la Sidebar.
+- Possibilité de démarrer une nouvelle conversation avec n'importe quel utilisateur inscrit.
+
+### 3. Améliorations UX (Chat deeply built)
+- **Indicateurs de lecture** : Ajout des checkmarks (✓/✓✓) pour le statut des messages.
+- **Scroll Intelligent** : Bouton "Retour en bas" automatique et scroll doux vers les nouveaux messages.
+- **Support Emoji** : Intégration d'un sélecteur d'emojis rapide pour enrichir les conversations.
+- **Modales Profil** : Visualisation des détails utilisateur via un clic sur l'avatar.
+
+---
+
+## État du projet au 28/03/2026 (Finalisé)
 
 ### Routes API disponibles
 
@@ -235,33 +258,14 @@ Remplacement du système de polling (requêtes HTTP toutes les 5 secondes) par u
 | `POST` | `/api/users/login` | Connexion / création utilisateur |
 | `POST` | `/api/users/logout` | Déconnexion |
 | `GET` | `/api/users/online` | Liste des utilisateurs en ligne (Redis) |
+| `GET` | `/api/users/search` | Recherche globale d'utilisateurs (MongoDB) |
 | `POST` | `/api/messages/send` | Envoi d'un message (MongoDB + Redis pub/sub) |
 | `GET` | `/api/messages/conversation` | Historique entre deux utilisateurs |
 | `GET` | `/api/messages/search` | Recherche de messages par mot-clé |
 | `GET` | `/api/conversations/{username}` | Liste des conversations avec compteurs non lus |
 | `PUT` | `/api/conversations/read` | Marquer messages comme lus |
-| `GET` | `/api/stats/top-sender` | Utilisateur qui envoie le plus |
-| `GET` | `/api/stats/top-receiver` | Utilisateur qui reçoit le plus |
 | `GET` | `/api/health` | Santé du service (MongoDB + Redis) |
 | `WS` | `/ws/{username}` | WebSocket temps réel |
-
-### Infrastructure Docker
-
-```
-docker-compose up --build
-       │
-       ├── mongo1 (27017)  ─┐
-       ├── mongo2           ├── ReplicaSet rs0
-       ├── mongo3          ─┘
-       │
-       ├── mongo-init  ←── exécute database/init-mongo.sh
-       │
-       ├── redis (6379)
-       │
-       ├── backend (5000) ←── FastAPI + uvicorn
-       │
-       └── frontend (3000) ←── React
-```
 
 ### Fonctionnalités implémentées
 
@@ -274,8 +278,11 @@ docker-compose up --build
 - [x] Compteur de messages non lus par conversation
 - [x] Marquage automatique comme lu à l'ouverture
 - [x] Recherche de messages (regex MongoDB)
+- [x] Recherche globale d'utilisateurs pour nouveaux chats
+- [x] Interface Premium (Glassmorphism, Animations)
+- [x] Bouton scroll-to-bottom et indicateurs de lecture
+- [x] Support Emoji et Modale Profil
 - [x] Stats (top sender / top receiver)
 - [x] ReplicaSet MongoDB 3 nœuds
-- [x] Interface dark theme avec composants React
 - [ ] Authentification sécurisée (hors scope)
 - [ ] Groupes / salons (hors scope)

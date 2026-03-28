@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Avatar from './Avatar';
 
+const EMOJIS = ['😊', '😂', '🔥', '👍', '❤️', '🚀', '✨', '🤔'];
+
 function formatTime(iso) {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
@@ -23,8 +25,9 @@ function TypingDots() {
   );
 }
 
-function ChatPanel({ username, selectedUser, messages, typingUsers, onSendMessage, onTyping, isOnline }) {
+function ChatPanel({ username, selectedUser, messages, typingUsers, onSendMessage, onTyping, isOnline, onShowProfile }) {
   const [input, setInput] = useState('');
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
   const messagesEndRef = useRef(null);
   const typingTimer = useRef(null);
   const isTypingRef = useRef(false);
@@ -51,6 +54,10 @@ function ChatPanel({ username, selectedUser, messages, typingUsers, onSendMessag
     }, 2000);
   };
 
+  const addEmoji = (emoji) => {
+    setInput(prev => prev + emoji);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!input.trim()) return;
@@ -61,11 +68,20 @@ function ChatPanel({ username, selectedUser, messages, typingUsers, onSendMessag
     onTyping('stop_typing');
   };
 
+  const handleScroll = (e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.target;
+    setShowScrollBtn(scrollHeight - scrollTop - clientHeight > 300);
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   if (!selectedUser) {
     return (
       <main className="chat-panel empty-state">
         <div className="empty-state-content">
-          <div className="empty-state-icon">💬</div>
+          <div className="empty-state-icon">✨</div>
           <h2>PolyChat</h2>
           <p>Sélectionnez une conversation pour commencer</p>
         </div>
@@ -90,16 +106,20 @@ function ChatPanel({ username, selectedUser, messages, typingUsers, onSendMessag
   return (
     <main className="chat-panel">
       <div className="chat-header">
-        <Avatar username={selectedUser} size={40} />
+        <div style={{ cursor: 'pointer' }} onClick={() => onShowProfile(selectedUser)}>
+          <Avatar username={selectedUser} size={40} />
+        </div>
         <div className="chat-header-info">
-          <span className="chat-header-name">{selectedUser}</span>
+          <span className="chat-header-name" style={{ cursor: 'pointer' }} onClick={() => onShowProfile(selectedUser)}>
+            {selectedUser}
+          </span>
           <span className={`chat-header-status ${isOnline ? 'online' : 'offline'}`}>
             {isOnline ? 'En ligne' : 'Hors ligne'}
           </span>
         </div>
       </div>
 
-      <div className="messages-list">
+      <div className="messages-list" onScroll={handleScroll}>
         {grouped.map((item, i) =>
           item.type === 'date' ? (
             <div key={item.key} className="date-divider">
@@ -107,10 +127,19 @@ function ChatPanel({ username, selectedUser, messages, typingUsers, onSendMessag
             </div>
           ) : (
             <div key={i} className={`message-row ${item.from === username ? 'sent' : 'received'}`}>
-              {item.from !== username && <Avatar username={item.from} size={28} />}
+              {item.from !== username && (
+                <div style={{ cursor: 'pointer' }} onClick={() => onShowProfile(item.from)}>
+                  <Avatar username={item.from} size={28} />
+                </div>
+              )}
               <div className={`message-bubble ${item.from === username ? 'bubble-sent' : 'bubble-received'}`}>
                 <p>{item.content}</p>
-                <span className="message-time">{formatTime(item.timestamp)}</span>
+                <div className="message-time">
+                  {formatTime(item.timestamp)}
+                  {item.from === username && (
+                    <span className="message-status"> {item.read ? '✓✓' : '✓'}</span>
+                  )}
+                </div>
               </div>
             </div>
           )
@@ -118,7 +147,9 @@ function ChatPanel({ username, selectedUser, messages, typingUsers, onSendMessag
 
         {isTypingForMe && (
           <div className="message-row received">
-            <Avatar username={selectedUser} size={28} />
+            <div style={{ cursor: 'pointer' }} onClick={() => onShowProfile(selectedUser)}>
+              <Avatar username={selectedUser} size={28} />
+            </div>
             <div className="message-bubble bubble-received typing-bubble">
               <TypingDots />
             </div>
@@ -126,6 +157,18 @@ function ChatPanel({ username, selectedUser, messages, typingUsers, onSendMessag
         )}
 
         <div ref={messagesEndRef} />
+      </div>
+
+      {showScrollBtn && (
+        <button className="scroll-bottom-btn" onClick={scrollToBottom} title="Retour en bas">
+          ↓
+        </button>
+      )}
+
+      <div className="emoji-picker-row">
+        {EMOJIS.map(e => (
+          <button key={e} className="emoji-btn" onClick={() => addEmoji(e)}>{e}</button>
+        ))}
       </div>
 
       <form className="message-form" onSubmit={handleSubmit}>
