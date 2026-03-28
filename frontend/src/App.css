@@ -638,3 +638,11 @@ body {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* Polissage: effet de zoom sur les avatars */
+.sidebar-user div:hover,
+.chat-header div:hover,
+.message-row.received div:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+}
