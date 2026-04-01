@@ -25,6 +25,8 @@ function Avatar({ username, size = 38 }) {
       color: '#fff',
       flexShrink: 0,
       userSelect: 'none',
+      transition: 'transform 0.2s, box-shadow 0.2s',
+      cursor: 'pointer',
     }}>
       {username[0].toUpperCase()}
     </div>

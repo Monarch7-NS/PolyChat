@@ -11,19 +11,19 @@ function Login({ onLogin }) {
   return (
     <div className="login-page">
       <div className="login-card">
-        <div className="login-logo">💬</div>
+        <div className="login-logo">✨</div>
         <h1>PolyChat</h1>
-        <p>Entrez votre nom d'utilisateur pour commencer</p>
+        <p>Rejoignez la conversation. Connectez-vous maintenant.</p>
         <form onSubmit={handleSubmit}>
           <input
             type="text"
-            placeholder="Nom d'utilisateur"
+            placeholder="Pseudo"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             autoFocus
             required
           />
-          <button type="submit">Se connecter</button>
+          <button type="submit">Commencer</button>
         </form>
       </div>
     </div>

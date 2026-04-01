@@ -62,3 +62,22 @@ def get_online_users():
 
     users = list(redis_client.smembers("online:users"))
     return {"users": users}
+
+
+@router.get("/search")
+def search_users(query: str):
+    db = get_db()
+    if db is None:
+        raise HTTPException(status_code=503, detail="MongoDB non disponible")
+
+    if not query.strip():
+        return {"users": []}
+
+    # Search in all users, excluding a potential "admin" or just finding matches
+    users = list(
+        db.users.find(
+            {"username": {"$regex": query.strip(), "$options": "i"}},
+            {"_id": 0, "username": 1}
+        ).limit(10)
+    )
+    return {"users": [u["username"] for u in users]}
