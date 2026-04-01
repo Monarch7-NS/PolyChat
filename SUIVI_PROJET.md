@@ -5,7 +5,7 @@ Ce document suit l'avancement du projet PolyChat (INFO834 - Mini-projet BD NoSQL
 ## Équipe
 - SYOUTI HOUSSAM EDDINE
 - Steve MBODA NGUENANG
--
+- Islam HACHIMI
 -
 
 ## Sessions
@@ -46,6 +46,11 @@ Ce document suit l'avancement du projet PolyChat (INFO834 - Mini-projet BD NoSQL
   - Intégration de l'historique dans `routers/users.py` : appel de `_log_event()` à chaque login et logout pour alimenter les clés Redis `connection_history:<user>` et `global:connection_log`
   - Ajout de 3 nouvelles routes API : `GET /api/users/{username}/history`, `GET /api/users/{username}/last-seen`, `GET /api/users/connection-log`
   - Tests complets de l'application : vérification du backend (`/api/health`), tests Redis via `redis-cli` (`SMEMBERS`, `LRANGE`, `HGETALL`, `PUBSUB`), tests MongoDB (`countDocuments`, `find`, `aggregate`, `getIndexes`), tests ReplicaSet (`rs.status()`, `rs.isMaster()`, tolérance aux pannes par arrêt du PRIMARY)
+
+- **Islam HACHIMI :**
+  - Débogage et résolution de l'erreur OCI runtime/mount Docker : correction du conflit de montage pour le script `init-mongo.sh`
+  - Optimisation du `docker-compose.yml` : modification des points de montage et de l'entrypoint pour une structure plus robuste
+  - Monitoring et validation du bon démarrage de l'ensemble des services (ReplicaSet MongoDB, Redis, API Backend, Frontend)
 
 
 **Avancement global :**
