@@ -37,19 +37,30 @@ Ce document suit l'avancement du projet PolyChat (INFO834 - Mini-projet BD NoSQL
 
 ---
 
+### Séance du 01/04/2026 (08:00 - 18:00)
+**Objectifs de la séance :** Complétion de la partie Redis, correction du bug de démarrage du backend, tests de l'application
+
+**Contributions :**
+- **Steve MBODA :**
+  - Complétion du fichier `redis_utils.py` : ajout des fonctions d'historique des connexions (`log_login`, `log_logout`, `get_connection_history`, `get_global_connection_log`, `get_last_seen`) avec les structures de données Redis adaptées (LIST avec `LPUSH`/`LTRIM`, HASH `last_seen`)
+  - Intégration de l'historique dans `routers/users.py` : appel de `_log_event()` à chaque login et logout pour alimenter les clés Redis `connection_history:<user>` et `global:connection_log`
+  - Ajout de 3 nouvelles routes API : `GET /api/users/{username}/history`, `GET /api/users/{username}/last-seen`, `GET /api/users/connection-log`
+  - Tests complets de l'application : vérification du backend (`/api/health`), tests Redis via `redis-cli` (`SMEMBERS`, `LRANGE`, `HGETALL`, `PUBSUB`), tests MongoDB (`countDocuments`, `find`, `aggregate`, `getIndexes`), tests ReplicaSet (`rs.status()`, `rs.isMaster()`, tolérance aux pannes par arrêt du PRIMARY)
+
+
+**Avancement global :**
+- ✅ Historique des connexions Redis implémenté et exposé via API
+- ✅ Toutes les exigences Redis du sujet couvertes (présence en ligne, sessions, historique, pub/sub)
+- ✅ ReplicaSet MongoDB testé (failover, resynchronisation)
+- ✅ Tests des routes API validés
+
+
+
+---
+
 ### Séance du [JJ/MM/AAAA] ([HH:MM] - [HH:MM])
 **Objectifs de la séance :**
 
-**Contributions :**
-- **[Membre 1] :**
-  - [Contribution 1]
-  - [Contribution 2]
-- **[Membre 2] :**
-  - [Contribution 3]
-- **[Membre 3] :**
-  - [Contribution 4]
-- **[Membre 4] :**
-  - [Contribution 5]
 
 
 
