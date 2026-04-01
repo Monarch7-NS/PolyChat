@@ -31,6 +31,6 @@ app.include_router(ws.router)
 def health():
     return {
         "status": "ok",
-        "mongodb": "connected" if database.get_db() else "disconnected",
-        "redis": "connected" if database.get_redis() else "disconnected",
+        "mongodb": "connected" if database.get_db() is not None else "disconnected",
+        "redis": "connected" if database.get_redis() is not None else "disconnected",
     }

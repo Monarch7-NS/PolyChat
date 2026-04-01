@@ -44,7 +44,7 @@ def send_message(body: MessageBody):
         upsert=True,
     )
 
-    if redis_client:
+    if redis_client is not None:
         payload = json.dumps({
             "type": "new_message",
             "id": str(result.inserted_id),
