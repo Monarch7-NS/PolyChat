@@ -9,7 +9,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - REACT_APP_API_URL=http://localhost:5000
+      - REACT_APP_API_URL=http://localhost:5001
     depends_on:
       - backend
     networks:
@@ -20,7 +20,7 @@ services:
     build: ./backend
     container_name: polychat_backend
     ports:
-      - "5000:5000"
+      - "5001:5000"
     environment:
       MONGO_URI: "mongodb://mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=rs0"
       REDIS_HOST: "redis"
@@ -36,7 +36,7 @@ services:
     image: redis:7
     container_name: polychat_redis
     ports:
-      - "6379:6379"
+      - "6380:6379"
     networks:
       - mongo_net
 
