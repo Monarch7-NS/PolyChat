@@ -90,7 +90,7 @@ services:
     restart: "no"
     volumes:
       - ./database/init-mongo.sh:/usr/local/bin/init-mongo.sh:ro
-      - ./dump_polychat:/dump/polychat:ro
+      - ./dump_polychat:/dump:ro
     entrypoint: ["bash", "/usr/local/bin/init-mongo.sh"]
 
 networks:
