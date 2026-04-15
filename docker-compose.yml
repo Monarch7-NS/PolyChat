@@ -35,8 +35,11 @@ services:
   redis:
     image: redis:7
     container_name: polychat_redis
+    command: redis-server --appendonly yes --appendfsync everysec
     ports:
       - "6380:6379"
+    volumes:
+      - redis_data:/data
     networks:
       - mongo_net
 
@@ -97,3 +100,4 @@ volumes:
   mongo1_data:
   mongo2_data:
   mongo3_data:
+  redis_data:
