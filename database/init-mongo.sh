@@ -27,12 +27,16 @@ echo "Replica Set initialisé."
 
 # Attendre que le primary soit élu
 echo "Attente de l'élection du primary..."
-sleep 5
+until mongosh --host mongo1 --eval "rs.isMaster().ismaster" --quiet 2>/dev/null | grep -q "true"; do
+  echo "  Primary pas encore élu, on attend..."
+  sleep 3
+done
+echo "Primary élu."
 
 # Import automatique si un dump est présent
 if [ -d "/dump/polychat" ] && [ "$(ls -A /dump/polychat 2>/dev/null)" ]; then
   echo "Dump détecté dans /dump/polychat — import automatique en cours..."
-  mongorestore --host mongo1 --db polychat /dump/polychat --drop
+  mongorestore --host mongo1 --nsInclude="polychat.*" /dump --drop
   echo "Import terminé."
 else
   echo "Aucun dump trouvé, la base sera initialisée par le backend au démarrage."
