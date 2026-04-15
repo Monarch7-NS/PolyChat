@@ -56,6 +56,14 @@ def send_message(body: MessageBody):
         })
         redis_client.publish(f"chat:{to_user}", payload)
 
+        # Leaderboards temps réel (Sorted Sets)
+        redis_client.zincrby("leaderboard:senders", 1, from_user)
+        redis_client.zincrby("leaderboard:receivers", 1, to_user)
+
+        # Activité journalière (Hash date → count)
+        today = now.strftime("%Y-%m-%d")
+        redis_client.hincrby("daily:activity", today, 1)
+
     return {"message": "Message envoyé avec succès", "id": str(result.inserted_id)}
 
 

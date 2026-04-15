@@ -63,6 +63,30 @@ Ce document suit l'avancement du projet PolyChat (INFO834 - Mini-projet BD NoSQL
 
 ---
 
+### Séance du 15/04/2026
+**Objectifs de la séance :** Professionnalisation de l'application — authentification, rôles, dashboard admin, persistance des données
+
+**Contributions :**
+- **Steve MBODA :** (travail sur une nouvelle brance feat/auth-and-admin avant de merge avec le main)
+  - **Authentification sécurisée :** Implémentation de l'inscription et de la connexion avec hachage de mot de passe 
+  - **Sécurisation des routes API :** Toutes les routes (`/messages`, `/conversations`, `/users`, `/stats`, WebSocket) protégées par token JWT. Vérification que l'utilisateur ne peut accéder qu'à ses propres données (sauf admin)
+  - **Dashboard Admin :** Création du dashboard avec 4 onglets : Vue générale (stats globales), Utilisateurs (tableau avec messages envoyés/reçus), Activité (graphique en barres par jour), Connexions (historique Redis). Accès réservé au rôle admin
+  - **Page de connexion repensée :** Refonte de `Login.js` avec deux onglets (Connexion / Inscription), validation des champs, affichage des erreurs, hint des identifiants de démo
+  - **Persistance Redis :** Activation de l'AOF (`--appendonly yes --appendfsync everysec`) avec volume Docker nommé `redis_data` pour conserver l'historique des connexions entre redémarrages
+  - **Export / Import de la base MongoDB :** Ajout des commandes `db-export` et `db-import` dans le Makefile pour partager les données entre membres de l'équipe
+  - **Seed amélioré :** `seed.py` crée/met à jour l'utilisateur admin indépendamment de l'état de la base, et migre les anciens comptes sans mot de passe
+
+**Avancement global :**
+- ✅ Authentification complète (inscription, connexion, JWT, rôles)
+- ✅ Dashboard admin avec statistiques persistantes
+- ✅ Toutes les routes API sécurisées
+- ✅ Persistance Redis entre redémarrages
+- ✅ Export/Import MongoDB pour partage entre membres
+- ✅ Import automatique de la base au démarrage du projet
+- ✅ ReplicaSet : démarrage fiable avec attente du PRIMARY avant import
+
+---
+
 ### Séance du [JJ/MM/AAAA] ([HH:MM] - [HH:MM])
 **Objectifs de la séance :**
 
