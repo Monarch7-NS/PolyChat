@@ -4,6 +4,8 @@ import Login from './components/Login';
 import Sidebar from './components/Sidebar';
 import ChatPanel from './components/ChatPanel';
 import ProfileModal from './components/ProfileModal';
+import GlobalStatsModal from './components/GlobalStatsModal';
+import ConnectionHistoryModal from './components/ConnectionHistoryModal';
 import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
@@ -12,6 +14,8 @@ const WS_URL = API_URL.replace(/^http/, 'ws');
 function App() {
   const [username, setUsername] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showStats, setShowStats] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState(new Set());
   const [selectedUser, setSelectedUser] = useState(null);
@@ -223,6 +227,9 @@ function App() {
         onLogout={handleLogout}
         searchResults={searchResults}
         onSearch={searchUsers}
+        onOpenStats={() => setShowStats(true)}
+        onOpenHistory={() => setShowHistory(true)}
+        onShowProfile={(u) => setProfileUser(u)}
       />
       <ChatPanel
         username={username}
@@ -237,6 +244,8 @@ function App() {
       {profileUser && (
         <ProfileModal username={profileUser} onClose={() => setProfileUser(null)} />
       )}
+      {showStats && <GlobalStatsModal onClose={() => setShowStats(false)} />}
+      {showHistory && <ConnectionHistoryModal onClose={() => setShowHistory(false)} />}
     </div>
   );
 }
