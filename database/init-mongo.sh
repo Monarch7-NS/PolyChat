@@ -27,7 +27,7 @@ echo "Replica Set initialisé."
 
 # Attendre que le primary soit élu
 echo "Attente de l'élection du primary..."
-until mongosh --host mongo1 --eval "rs.isMaster().ismaster" --quiet 2>/dev/null | grep -q "true"; do
+until mongosh --host mongo1 --quiet --eval "print(rs.isMaster().ismaster)" 2>/dev/null | grep -q "^true$"; do
   echo "  Primary pas encore élu, on attend..."
   sleep 3
 done

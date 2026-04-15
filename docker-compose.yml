@@ -68,6 +68,11 @@ services:
       - mongo2_data:/data/db
     networks:
       - mongo_net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   mongo3:
     image: mongo:7
@@ -77,6 +82,11 @@ services:
       - mongo3_data:/data/db
     networks:
       - mongo_net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # ─── INIT ReplicaSet + Collections (exécuté une seule fois) ───
   mongo-init:
@@ -84,6 +94,10 @@ services:
     container_name: mongo-init
     depends_on:
       mongo1:
+        condition: service_healthy
+      mongo2:
+        condition: service_healthy
+      mongo3:
         condition: service_healthy
     networks:
       - mongo_net
