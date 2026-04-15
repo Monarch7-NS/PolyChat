@@ -1,7 +1,8 @@
 import os
+import hashlib
+import secrets
 from datetime import datetime, timedelta, timezone
 import jwt
-from passlib.context import CryptContext
 from fastapi import HTTPException, Depends, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
@@ -9,16 +10,25 @@ SECRET_KEY = os.getenv("SECRET_KEY", "polychat-super-secret-key-change-in-produc
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Hachage PBKDF2-SHA256 — module Python intégré, aucune dépendance externe
+_ITERATIONS = 260_000
+
 security = HTTPBearer()
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    salt = secrets.token_hex(16)
+    h = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), _ITERATIONS)
+    return f"pbkdf2:sha256:{_ITERATIONS}:{salt}:{h.hex()}"
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    try:
+        _, algo, iterations, salt, expected = hashed.split(":")
+        h = hashlib.pbkdf2_hmac(algo, plain.encode(), salt.encode(), int(iterations))
+        return secrets.compare_digest(h.hex(), expected)
+    except Exception:
+        return False
 
 
 def create_token(username: str, role: str) -> str:
