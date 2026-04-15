@@ -5,8 +5,36 @@ from app.auth import hash_password
 
 def seed_database(db, redis_client):
     try:
+        # ── Toujours créer/mettre à jour l'admin (indépendamment du reste) ──────
+        admin_users = [
+            {"username": "admin", "password": "admin1234", "role": "admin"},
+        ]
+        for u in admin_users:
+            existing = db.users.find_one({"username": u["username"]})
+            if not existing or not existing.get("password"):
+                db.users.update_one(
+                    {"username": u["username"]},
+                    {"$set": {
+                        "username": u["username"],
+                        "password": hash_password(u["password"]),
+                        "role": u["role"],
+                    }, "$setOnInsert": {"created_at": datetime.utcnow()}},
+                    upsert=True,
+                )
+                print(f"✓ Compte '{u['username']}' créé/mis à jour (rôle: {u['role']})")
+
+        # ── Migrer les utilisateurs existants sans mot de passe ─────────────────
+        # (utilisateurs créés avant l'ajout de l'authentification)
+        users_without_password = list(db.users.find({"password": {"$exists": False}}))
+        for u in users_without_password:
+            db.users.update_one(
+                {"username": u["username"]},
+                {"$set": {"password": hash_password("password123"), "role": "user"}}
+            )
+            print(f"✓ Mot de passe ajouté pour l'utilisateur existant '{u['username']}' (password123)")
+
         if db.messages.count_documents({}) > 0:
-            print("Base de données déjà peuplée, on ignore le seeding.")
+            print("Base de données déjà peuplée, on ignore le seeding des messages.")
             return
 
         print("Seeding de la base de données...")

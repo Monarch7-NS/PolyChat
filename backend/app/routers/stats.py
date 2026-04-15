@@ -103,9 +103,7 @@ def get_all_users_stats(admin: dict = Depends(require_admin)):
 
 @router.get("/user-activity/{username}")
 def get_user_activity(username: str, current_user: dict = Depends(get_current_user)):
-    """Stats d'activité d'un utilisateur (accessible à soi-même ou à l'admin)."""
-    if current_user.get("sub") != username and current_user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Accès non autorisé")
+    """Stats d'activité d'un utilisateur (accessible à tout utilisateur authentifié)."""
 
     db = get_db()
     if db is None:

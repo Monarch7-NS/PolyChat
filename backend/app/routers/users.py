@@ -69,7 +69,13 @@ def login(body: LoginBody):
     if not user:
         raise HTTPException(status_code=401, detail="Utilisateur introuvable")
 
-    if not verify_password(body.password, user.get("password", "")):
+    if not user.get("password"):
+        raise HTTPException(
+            status_code=401,
+            detail="Ce compte n'a pas de mot de passe. Utilisez 'password123' après redémarrage de l'application."
+        )
+
+    if not verify_password(body.password, user["password"]):
         raise HTTPException(status_code=401, detail="Mot de passe incorrect")
 
     role = user.get("role", "user")
