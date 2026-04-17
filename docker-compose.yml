@@ -35,8 +35,11 @@ services:
   redis:
     image: redis:7
     container_name: polychat_redis
+    command: redis-server --appendonly yes --appendfsync everysec
     ports:
       - "6380:6379"
+    volumes:
+      - redis_data:/data
     networks:
       - mongo_net
 
@@ -65,6 +68,11 @@ services:
       - mongo2_data:/data/db
     networks:
       - mongo_net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   mongo3:
     image: mongo:7
@@ -74,6 +82,11 @@ services:
       - mongo3_data:/data/db
     networks:
       - mongo_net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # ─── INIT ReplicaSet + Collections (exécuté une seule fois) ───
   mongo-init:
@@ -82,11 +95,16 @@ services:
     depends_on:
       mongo1:
         condition: service_healthy
+      mongo2:
+        condition: service_healthy
+      mongo3:
+        condition: service_healthy
     networks:
       - mongo_net
     restart: "no"
     volumes:
       - ./database/init-mongo.sh:/usr/local/bin/init-mongo.sh:ro
+      - ./dump_polychat:/dump:ro
     entrypoint: ["bash", "/usr/local/bin/init-mongo.sh"]
 
 networks:
@@ -97,3 +115,4 @@ volumes:
   mongo1_data:
   mongo2_data:
   mongo3_data:
+  redis_data:
