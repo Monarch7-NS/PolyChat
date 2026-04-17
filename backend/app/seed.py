@@ -114,4 +114,50 @@ def seed_database(db, redis_client):
         print("    admin                          →  mot de passe : admin1234")
 
     except Exception as e:
-        print(f"Erreur lors du seeding : {e}")
+        print(f"❌ Erreur lors du seeding de la base de données : {e}")
+
+    # Reconstruction des leaderboards Redis depuis MongoDB (toujours exécutée)
+    _rebuild_redis_stats(db, redis_client)
+
+
+def _rebuild_redis_stats(db, redis_client):
+    """Reconstruit les Sorted Sets Redis de stats depuis MongoDB si vides."""
+    try:
+        if redis_client is None:
+            return
+
+        # Ne reconstruire que si les leaderboards sont vides
+        if redis_client.zcard("leaderboard:senders") > 0:
+            print("💡 Leaderboards Redis déjà présents, reconstruction ignorée.")
+            return
+
+        print("🔄 Reconstruction des leaderboards Redis depuis MongoDB...")
+
+        # Leaderboard expéditeurs
+        senders = db.messages.aggregate([
+            {"$group": {"_id": "$from", "count": {"$sum": 1}}}
+        ])
+        for s in senders:
+            redis_client.zadd("leaderboard:senders", {s["_id"]: s["count"]})
+
+        # Leaderboard destinataires
+        receivers = db.messages.aggregate([
+            {"$group": {"_id": "$to", "count": {"$sum": 1}}}
+        ])
+        for r in receivers:
+            redis_client.zadd("leaderboard:receivers", {r["_id"]: r["count"]})
+
+        # Activité journalière
+        daily = db.messages.aggregate([
+            {"$group": {
+                "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$timestamp"}},
+                "count": {"$sum": 1}
+            }}
+        ])
+        for d in daily:
+            redis_client.hset("daily:activity", d["_id"], d["count"])
+
+        print("✅ Leaderboards Redis reconstruits depuis MongoDB.")
+
+    except Exception as e:
+        print(f"⚠️ Erreur reconstruction Redis stats : {e}")
