@@ -10,7 +10,7 @@ function formatTime(iso) {
   return d.toLocaleDateString([], { day: '2-digit', month: '2-digit' });
 }
 
-function Sidebar({ username, conversations, onlineUsers, selectedUser, onSelectUser, onLogout, searchResults, onSearch, onOpenStats, onOpenHistory, onShowProfile }) {
+function Sidebar({ username, role, conversations, onlineUsers, selectedUser, onSelectUser, onLogout, searchResults, onSearch, onOpenStats, onOpenHistory, onShowProfile, onOpenAdmin }) {
   const [search, setSearch] = useState('');
 
   const filtered = conversations.filter((c) =>
@@ -30,12 +30,11 @@ function Sidebar({ username, conversations, onlineUsers, selectedUser, onSelectU
           <span className="sidebar-username">{username}</span>
         </div>
         <div className="sidebar-actions">
-          <button className="icon-btn" onClick={onOpenStats} title="Statistiques globales (Top Utilisateurs)">
-            📊
-          </button>
-          <button className="icon-btn" onClick={onOpenHistory} title="Historique des connexions">
-            🕒
-          </button>
+          {onOpenAdmin && (
+            <button className="icon-btn admin-btn" onClick={onOpenAdmin} title="Dashboard Admin">
+              🛡️
+            </button>
+          )}
           <button className="logout-btn" onClick={onLogout} title="Déconnexion">
             ⏻
           </button>

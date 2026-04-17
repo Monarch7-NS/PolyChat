@@ -90,6 +90,43 @@ def get_daily_activity():
     return {"activity": [{"date": r["_id"], "messages": r["count"]} for r in result]}
 
 
+@router.get("/overview")
+def get_overview(admin: dict = Depends(require_admin)):
+    """[Admin] Vue d'ensemble : totaux utilisateurs, messages, conversations."""
+    db = get_db()
+    if db is None:
+        raise HTTPException(status_code=503, detail="MongoDB non disponible")
+    return {
+        "total_users": db.users.count_documents({}),
+        "total_messages": db.messages.count_documents({}),
+        "total_conversations": db.conversations.count_documents({}),
+    }
+
+
+@router.get("/all-users")
+def get_all_users_stats(admin: dict = Depends(require_admin)):
+    """[Admin] Stats de tous les utilisateurs (envoyés, reçus)."""
+    db = get_db()
+    if db is None:
+        raise HTTPException(status_code=503, detail="MongoDB non disponible")
+
+    users = list(db.users.find({}, {"_id": 0, "username": 1, "role": 1, "created_at": 1}))
+    result = []
+    for u in users:
+        username = u["username"]
+        sent = db.messages.count_documents({"from": username})
+        received = db.messages.count_documents({"to": username})
+        result.append({
+            "username": username,
+            "role": u.get("role", "user"),
+            "created_at": u.get("created_at", "").isoformat() if u.get("created_at") else "",
+            "messages_sent": sent,
+            "messages_received": received,
+        })
+    result.sort(key=lambda x: x["messages_sent"] + x["messages_received"], reverse=True)
+    return {"users": result}
+
+
 @router.get("/user-activity/{username}")
 def get_user_activity(username: str):
     rc = get_redis()

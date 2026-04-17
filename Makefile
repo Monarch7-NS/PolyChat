@@ -1,4 +1,4 @@
-.PHONY: help install dev docker-up docker-down logs clean git-pull git-push
+.PHONY: help install dev docker-up docker-down logs clean git-pull git-push db-export db-import
 
 help:
 	@echo "PolyChat - Commandes disponibles"
@@ -15,6 +15,10 @@ help:
 	@echo "  make docker-down   - Arrêter tous les services"
 	@echo "  make docker-clean  - Arrêter et supprimer les volumes"
 	@echo "  make logs          - Voir les logs de tous les services"
+	@echo ""
+	@echo "Base de données:"
+	@echo "  make db-export     - Exporter la base MongoDB vers ./dump_polychat/"
+	@echo "  make db-import     - Importer la base MongoDB depuis ./dump_polychat/"
 	@echo ""
 	@echo "Développement:"
 	@echo "  make dev-backend   - Lancer le backend (terminal séparé requis)"
@@ -96,6 +100,20 @@ shell-mongo:
 
 shell-redis:
 	docker exec -it redis redis-cli
+
+# ========== Base de données ==========
+
+db-export:
+	@echo "Export de la base MongoDB vers ./dump_polychat/ ..."
+	docker exec mongo1 mongodump --db polychat --out /dump
+	docker cp mongo1:/dump ./dump_polychat
+	@echo "Export terminé : ./dump_polychat/"
+
+db-import:
+	@echo "Import de la base MongoDB depuis ./dump_polychat/ ..."
+	docker cp ./dump_polychat mongo1:/dump
+	docker exec mongo1 mongorestore --db polychat /dump/polychat --drop
+	@echo "Import terminé"
 
 clean:
 	@echo "Nettoyage..."
