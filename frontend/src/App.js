@@ -3,6 +3,10 @@ import axios from 'axios';
 import Login from './components/Login';
 import Sidebar from './components/Sidebar';
 import ChatPanel from './components/ChatPanel';
+import ProfileModal from './components/ProfileModal';
+import GlobalStatsModal from './components/GlobalStatsModal';
+import ConnectionHistoryModal from './components/ConnectionHistoryModal';
+import AdminDashboard from './components/AdminDashboard';
 import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
@@ -10,17 +14,44 @@ const WS_URL = API_URL.replace(/^http/, 'ws');
 
 function App() {
   const [username, setUsername] = useState('');
+  const [role, setRole] = useState('user');
+  const [token, setToken] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [showStats, setShowStats] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState(new Set());
   const [selectedUser, setSelectedUser] = useState(null);
   const [messages, setMessages] = useState([]);
   const [typingUsers, setTypingUsers] = useState(new Set());
+  const [searchResults, setSearchResults] = useState([]);
+  const [profileUser, setProfileUser] = useState(null);
 
   const ws = useRef(null);
   const selectedUserRef = useRef(null);
   const currentUserRef = useRef('');
   const typingTimers = useRef({});
+
+  // Configure axios avec le token JWT à chaque changement
+  useEffect(() => {
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } else {
+      delete axios.defaults.headers.common['Authorization'];
+    }
+  }, [token]);
+
+  const searchUsers = useCallback(async (query) => {
+    if (!query.trim()) { setSearchResults([]); return; }
+    try {
+      const res = await axios.get(`${API_URL}/api/users/search`, { params: { query: query.trim() } });
+      const filtered = (res.data.users || []).filter(
+        (u) => u !== currentUserRef.current && !conversations.find((c) => c.other_user === u)
+      );
+      setSearchResults(filtered);
+    } catch (_) {}
+  }, [conversations]);
 
   const fetchConversations = useCallback(async (user) => {
     try {
@@ -44,107 +75,96 @@ function App() {
     } catch (_) {}
   }, []);
 
-  const handleWsMessage = useCallback(
-    (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        switch (data.type) {
-          case 'new_message':
-            if (data.from === selectedUserRef.current) {
-              setMessages((prev) => [...prev, data]);
-              markAsRead(data.from, currentUserRef.current);
-            } else {
-              setConversations((prev) => {
-                const exists = prev.find((c) => c.other_user === data.from);
-                const updated = exists
-                  ? prev
-                      .map((c) =>
-                        c.other_user === data.from
-                          ? { ...c, unread_count: c.unread_count + 1, last_message: data.content, updated_at: data.timestamp }
-                          : c
-                      )
-                      .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
-                  : [{ other_user: data.from, last_message: data.content, updated_at: data.timestamp, unread_count: 1 }, ...prev];
-                return updated;
-              });
-            }
-            break;
-          case 'typing':
-            setTypingUsers((prev) => new Set([...prev, data.from]));
-            clearTimeout(typingTimers.current[data.from]);
-            typingTimers.current[data.from] = setTimeout(() => {
-              setTypingUsers((prev) => {
-                const next = new Set(prev);
-                next.delete(data.from);
-                return next;
-              });
-            }, 3000);
-            break;
-          case 'stop_typing':
-            setTypingUsers((prev) => {
-              const next = new Set(prev);
-              next.delete(data.from);
-              return next;
+  const handleWsMessage = useCallback((event) => {
+    try {
+      const data = JSON.parse(event.data);
+      switch (data.type) {
+        case 'new_message':
+          if (data.from === selectedUserRef.current) {
+            setMessages((prev) => [...prev, data]);
+            markAsRead(data.from, currentUserRef.current);
+          } else {
+            setConversations((prev) => {
+              const exists = prev.find((c) => c.other_user === data.from);
+              const updated = exists
+                ? prev
+                    .map((c) =>
+                      c.other_user === data.from
+                        ? { ...c, unread_count: c.unread_count + 1, last_message: data.content, updated_at: data.timestamp }
+                        : c
+                    )
+                    .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+                : [{ other_user: data.from, last_message: data.content, updated_at: data.timestamp, unread_count: 1 }, ...prev];
+              return updated;
             });
-            break;
-          default:
-            break;
-        }
-      } catch (_) {}
-    },
-    [markAsRead]
-  );
+          }
+          break;
+        case 'typing':
+          setTypingUsers((prev) => new Set([...prev, data.from]));
+          clearTimeout(typingTimers.current[data.from]);
+          typingTimers.current[data.from] = setTimeout(() => {
+            setTypingUsers((prev) => { const n = new Set(prev); n.delete(data.from); return n; });
+          }, 3000);
+          break;
+        case 'stop_typing':
+          setTypingUsers((prev) => { const n = new Set(prev); n.delete(data.from); return n; });
+          break;
+        default:
+          break;
+      }
+    } catch (_) {}
+  }, [markAsRead]);
 
   const handleWsMessageRef = useRef(handleWsMessage);
-  useEffect(() => {
-    handleWsMessageRef.current = handleWsMessage;
-  }, [handleWsMessage]);
+  useEffect(() => { handleWsMessageRef.current = handleWsMessage; }, [handleWsMessage]);
 
   useEffect(() => {
-    if (!isLoggedIn) return;
+    if (!isLoggedIn || !token) return;
     currentUserRef.current = username;
 
-    ws.current = new WebSocket(`${WS_URL}/ws/${username}`);
+    ws.current = new WebSocket(`${WS_URL}/ws/${username}?token=${encodeURIComponent(token)}`);
     ws.current.onmessage = (e) => handleWsMessageRef.current(e);
     ws.current.onerror = () => {};
 
     fetchConversations(username);
     fetchOnlineUsers();
     const interval = setInterval(fetchOnlineUsers, 10000);
+    return () => { clearInterval(interval); ws.current?.close(); };
+  }, [isLoggedIn, username, token, fetchConversations, fetchOnlineUsers]);
 
-    return () => {
-      clearInterval(interval);
-      ws.current?.close();
-    };
-  }, [isLoggedIn, username, fetchConversations, fetchOnlineUsers]);
-
-  const selectUser = useCallback(
-    async (otherUser) => {
-      selectedUserRef.current = otherUser;
-      setSelectedUser(otherUser);
-      try {
-        const res = await axios.get(`${API_URL}/api/messages/conversation`, {
-          params: { user1: currentUserRef.current, user2: otherUser },
-        });
-        setMessages(res.data.messages || []);
-      } catch (_) {}
-      await markAsRead(otherUser, currentUserRef.current);
-      setConversations((prev) =>
-        prev.map((c) => (c.other_user === otherUser ? { ...c, unread_count: 0 } : c))
-      );
-    },
-    [markAsRead]
-  );
-
-  const handleLogin = async (inputUsername) => {
-    const trimmed = inputUsername.trim();
-    if (!trimmed) return;
+  const selectUser = useCallback(async (otherUser) => {
+    selectedUserRef.current = otherUser;
+    setSelectedUser(otherUser);
+    setSearchResults([]);
     try {
-      await axios.post(`${API_URL}/api/users/login`, { username: trimmed });
-      setUsername(trimmed);
+      const res = await axios.get(`${API_URL}/api/messages/conversation`, {
+        params: { user1: currentUserRef.current, user2: otherUser },
+      });
+      setMessages(res.data.messages || []);
+    } catch (_) {}
+    await markAsRead(otherUser, currentUserRef.current);
+    setConversations((prev) =>
+      prev.map((c) => (c.other_user === otherUser ? { ...c, unread_count: 0 } : c))
+    );
+  }, [markAsRead]);
+
+  const handleLogin = async (inputUsername, password, mode) => {
+    const endpoint = mode === 'register' ? '/api/users/register' : '/api/users/login';
+    try {
+      const res = await axios.post(`${API_URL}${endpoint}`, {
+        username: inputUsername,
+        password,
+      });
+      const { token: jwt, username: user, role: userRole } = res.data;
+      setToken(jwt);
+      setUsername(user);
+      setRole(userRole);
       setIsLoggedIn(true);
-    } catch (_) {
-      alert('Erreur de connexion');
+      // Rediriger directement vers le dashboard admin si rôle admin
+      if (userRole === 'admin') setShowAdmin(true);
+    } catch (err) {
+      const detail = err.response?.data?.detail || 'Erreur de connexion';
+      throw new Error(detail);
     }
   };
 
@@ -153,7 +173,8 @@ function App() {
       await axios.post(`${API_URL}/api/users/logout`, { username });
     } catch (_) {}
     ws.current?.close();
-    selectedUserRef.current = null;
+    setToken('');
+    setRole('user');
     setIsLoggedIn(false);
     setUsername('');
     setConversations([]);
@@ -161,6 +182,8 @@ function App() {
     setMessages([]);
     setOnlineUsers(new Set());
     setTypingUsers(new Set());
+    setShowAdmin(false);
+    selectedUserRef.current = null;
   };
 
   const handleSendMessage = async (content) => {
@@ -191,15 +214,33 @@ function App() {
 
   if (!isLoggedIn) return <Login onLogin={handleLogin} />;
 
+  // Page admin complète (remplace le chat pour l'admin)
+  if (showAdmin && role === 'admin') {
+    return (
+      <AdminDashboard
+        username={username}
+        onLogout={handleLogout}
+        onExitAdmin={() => setShowAdmin(false)}
+      />
+    );
+  }
+
   return (
     <div className="app">
       <Sidebar
         username={username}
+        role={role}
         conversations={conversations}
         onlineUsers={onlineUsers}
         selectedUser={selectedUser}
         onSelectUser={selectUser}
         onLogout={handleLogout}
+        searchResults={searchResults}
+        onSearch={searchUsers}
+        onOpenStats={() => setShowStats(true)}
+        onOpenHistory={() => setShowHistory(true)}
+        onShowProfile={(u) => setProfileUser(u)}
+        onOpenAdmin={role === 'admin' ? () => setShowAdmin(true) : null}
       />
       <ChatPanel
         username={username}
@@ -209,7 +250,13 @@ function App() {
         onSendMessage={handleSendMessage}
         onTyping={sendTyping}
         isOnline={onlineUsers.has(selectedUser)}
+        onShowProfile={(u) => setProfileUser(u)}
       />
+      {profileUser && (
+        <ProfileModal username={profileUser} onClose={() => setProfileUser(null)} />
+      )}
+      {showStats && role === 'admin' && <GlobalStatsModal onClose={() => setShowStats(false)} />}
+      {showHistory && role === 'admin' && <ConnectionHistoryModal onClose={() => setShowHistory(false)} />}
     </div>
   );
 }
