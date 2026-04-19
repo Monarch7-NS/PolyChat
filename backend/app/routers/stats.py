@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from app.auth import require_admin
 from app.database import get_db, get_redis
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
