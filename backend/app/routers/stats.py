@@ -111,6 +111,7 @@ def get_user_activity(username: str, current_user: dict = Depends(get_current_us
 
     sent = db.messages.count_documents({"from": username})
     received = db.messages.count_documents({"to": username})
+
     top_contact = list(
         db.messages.aggregate([
             {"$match": {"$or": [{"from": username}, {"to": username}]}},
