@@ -1,3 +1,76 @@
+# PolyChat — Application de Messagerie Temps Réel
+
+## Lancer le projet
+
+### Prérequis
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installé et lancé
+- Git
+
+### Configuration Git sur Windows (important)
+
+Sur Windows, Git convertit les fins de ligne en CRLF par défaut, ce qui casse les scripts shell utilisés dans les conteneurs Docker. Il faut configurer Git pour conserver les fins de ligne LF **avant** de cloner le dépôt :
+
+```bash
+git config --global core.autocrlf false
+```
+
+Si le dépôt est déjà cloné, reconfigure puis refais un checkout :
+
+```bash
+git config --global core.autocrlf false
+git rm --cached -r .
+git reset --hard
+```
+
+### Démarrage
+
+```bash
+# 1. Cloner le dépôt
+git clone https://github.com/Monarch7-NS/PolyChat.git
+cd PolyChat
+
+# 2. Lancer tous les services
+docker compose up -d
+
+# 3. Vérifier que tout est lancé
+docker compose ps
+```
+
+L'application est accessible sur **http://localhost:3000**
+
+| Service  | URL                    |
+|----------|------------------------|
+| Frontend | http://localhost:3000  |
+| Backend  | http://localhost:5001  |
+| MongoDB  | localhost:27027        |
+| Redis    | localhost:6380         |
+
+### Comptes de démonstration
+
+| Utilisateur | Mot de passe | Rôle  |
+|-------------|--------------|-------|
+| admin       | admin1234    | Admin |
+| Alice       | password123  | User  |
+| Bob         | password123  | User  |
+
+### Import de la base de données (optionnel)
+
+Si un dossier `dump_polychat/` est présent, la base est importée **automatiquement** au démarrage. Pour forcer un import depuis zéro :
+
+```bash
+docker compose down -v
+docker compose up -d
+```
+
+### Arrêter le projet
+
+```bash
+docker compose down        # arrêt sans supprimer les données
+docker compose down -v     # arrêt + suppression des volumes (repart de zéro)
+```
+
+---
+
 ## 1. Contexte et objectif
 
 ### Fonctionnalités premières
